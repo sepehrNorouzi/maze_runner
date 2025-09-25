@@ -1,0 +1,5 @@
+INSTALL PYBIND11 on python
+IN CMAKE PYBIND11 IS INITIALIZED
+
+MAKE O = cmake -S . -B build -DPython_EXECUTABLE=$(which python3.12)
+MAKE SO = cmake --build build --config Release -j
