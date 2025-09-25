@@ -1,3 +1,5 @@
+import time
+
 from django.contrib import messages
 from django.http import HttpResponseRedirect
 from django.shortcuts import render
@@ -31,7 +33,9 @@ class MazeCreateView(View):
             h = form.cleaned_data['height']
             mode = form.cleaned_data['algorithm']
             h_p = form.cleaned_data['hybrid_prob']
+            _t0 = time.time_ns()
             m = create_maze(size=w, mode=mode, hybrid_prob=h_p)
+            _t1 = time.time_ns()
             maze = Maze.objects.create(
                 creator=request.user,
                 height=h,
@@ -41,7 +45,7 @@ class MazeCreateView(View):
             )
             maze.set_maze_binary(m)
             maze.save()
-            messages.success(request, 'Form submitted successfully! Maze creation will be implemented here.')
+            messages.success(request, 'Maze created successfully in {} nano seconds'.format(str(_t1 - _t0)))
             return HttpResponseRedirect(reverse('admin:maze_maze_change', args=[maze.id]))
 
         else:

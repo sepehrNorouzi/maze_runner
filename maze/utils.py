@@ -1,10 +1,15 @@
+import time
+
 from maze_runner.cpp_build import maze_generator
 
 def create_maze(size, mode, hybrid_prob=0.5):
     return maze_generator.generate_maze(size, mode, hybrid_prob)
 
 def solve_maze(grid):
+    _t0 = time.time_ns()
     g = maze_generator.solve_maze(grid)
+    _t1 = time.time_ns()
+    print("SOLVED in: ", _t1 - _t0)
     print("[solve_maze] GRID: ", g)
     return g
 
