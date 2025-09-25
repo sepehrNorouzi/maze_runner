@@ -1,0 +1,85 @@
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.pytest_cache/
+.coverage
+.tox/
+*.cover
+.hypothesis/
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Django
+*.log
+*.sqlite3
+db.sqlite3
+media/
+staticfiles/
+static/
+*.pid
+
+# Environment files
+.env
+.env.*
+!.env.sample
+env.sample
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Build directories
+build/
+dist/
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+
+# Documentation
+README.md
+LICENSE
+docs/
+*.md
+
+# Tests
+tests/
+test_*.py
+*_test.py
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+*.backup
+
+# OS files
+Thumbs.db
+Desktop.ini
+
+# Node (if any frontend assets)
+node_modules/
+npm-debug.log
+yarn-error.log
