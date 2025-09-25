@@ -42,7 +42,7 @@ class MazeCreateView(View):
             maze.set_maze_binary(m)
             maze.save()
             messages.success(request, 'Form submitted successfully! Maze creation will be implemented here.')
-            return HttpResponseRedirect(reverse('maze-create'))
+            return HttpResponseRedirect(reverse('admin:maze_maze_change', args=[maze.id]))
 
         else:
             context = {

@@ -1,10 +1,17 @@
+import time
+
 from django import forms
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.core.exceptions import ValidationError
 import json
 
+from django.db.models import QuerySet
+from django.http import HttpResponseRedirect
+from django.shortcuts import redirect
+from django.urls import path
 from django.utils.safestring import mark_safe
 
+from maze.maze_render import _render_maze_grid
 from maze.models import Maze
 
 
@@ -97,10 +104,28 @@ class MazeAdminForm(forms.ModelForm):
 class MazeAdmin(admin.ModelAdmin):
     form = MazeAdminForm
 
-    list_display = ['id', 'creator', 'dimensions', 'binary_size', 'created_time']
+    list_display = ['id', 'creator', 'dimensions', 'binary_size', 'created_time', 'solved', 'solved_time']
     list_filter = ['creator', 'created_time']
-    readonly_fields = ['created_time', 'updated_time', 'maze_preview', 'maze_binary']
+    readonly_fields = [
+        'created_time', 'updated_time', 'maze_preview', 'maze_binary',
+        'solved_maze_preview', 'solved_maze_grid', 'solved_maze', 'solved_time', 'solved']
     raw_id_fields = ['creator']
+
+    @admin.action()
+    def solve_maze(self, request, qs: QuerySet(Maze)):
+        for obj in qs:
+            obj.solve()
+        messages.info(request, message="{} Maze(s) solved successfully.".format(len(qs)))
+
+    solve_maze.short_description = "Solve selected mazes."
+
+    @admin.action()
+    def un_solve_maze(self, request, qs: QuerySet(Maze)):
+        for obj in qs:
+            obj.un_solve()
+        messages.info(request, message="{} Maze(s) UN-solved successfully.".format(len(qs)))
+
+    un_solve_maze.short_description = "Un-Solve selected mazes."
 
     fieldsets = (
         ('Basic Information', {
@@ -114,11 +139,30 @@ class MazeAdmin(admin.ModelAdmin):
             'fields': ('maze_preview',),
             'classes': ('collapse',)
         }),
+        ('Solved Data', {
+            'fields': ('solved', 'solved_time', 'solved_maze', 'solved_maze_preview', 'solved_maze_grid'),
+            'classes': ('collapse',)
+        }),
         ('Metadata', {
             'fields': ('created_time', 'updated_time'),
             'classes': ('collapse',)
         })
     )
+
+    def response_change(self, request, obj):
+        if "_solve" in request.POST:
+            t0 = time.time_ns()
+            obj.solve()
+            t1 = time.time_ns()
+            self.message_user(request, "Maze {} solved successfully in {} nano seconds.".format(obj, str(t1 - t0)))
+            return HttpResponseRedirect(".")
+        elif '_un_solve' in request.POST:
+            t0 = time.time_ns()
+            obj.un_solve()
+            t1 = time.time_ns()
+            self.message_user(request, "Maze {} un-solved successfully in {} nano seconds.".format(obj, str(t1 - t0)))
+            return HttpResponseRedirect(".")
+        return super().response_change(request, obj)
 
     def dimensions(self, obj):
         return f"{obj.width} × {obj.height}"
@@ -153,39 +197,39 @@ class MazeAdmin(admin.ModelAdmin):
 
         maze = obj.get_maze_binary()
 
-        # Define colors for each cell type
         cell_colors = {
             0: '#ffffff',  # Empty - white
-            1: '#000000',  # Wall - black
-            2: '#00ff00',  # Start - green
-            3: '#ff0000',  # Finish - red
+            1: '#1f2937',  # Wall - near-black (so not harsh)
+            2: '#10b981',  # Start - green (Tailwind emerald-500)
+            3: '#ef4444',  # Finish - red (Tailwind red-500)
         }
 
-        html = ['<table style="border-collapse: collapse; font-family: monospace;">']
-
-        for row in maze:
-            html.append('<tr>')
-            for cell in row:
-                color = cell_colors.get(cell, '#cccccc')  # Default to gray if unknown value
-                html.append(
-                    f'<td style="width: 20px; height: 20px; background-color: {color}; border: 1px solid #ddd;"></td>')
-            html.append('</tr>')
-
-        html.append('</table>')
-
-        # Add a legend
-        html.append('<div style="margin-top: 10px; font-size: 12px;">')
-        html.append('<strong>Legend:</strong> ')
-        html.append('<span style="background-color: #ffffff; color: #000000; border: 1px solid #000; padding: 2px 4px;">Empty</span> ')
-        html.append('<span style="background-color: #000000; color: white; padding: 2px 4px;">Wall</span> ')
-        html.append('<span style="background-color: #00ff00; color: black; padding: 2px 4px;">Start</span> ')
-        html.append('<span style="background-color: #ff0000; color: black; padding: 2px 4px;">Finish</span>')
-        html.append('</div>')
-
-        return mark_safe(''.join(html))
-
+        return _render_maze_grid(maze, cell_colors)
 
     maze_preview.short_description = "Maze Preview"
+
+    def solved_maze_preview(self, obj: Maze):
+        if not obj.solved or not obj.solved_maze:
+            return 'No solved maze data'
+        maze = obj.get_solved_maze()
+
+        # colors with distinct path color
+        cell_colors = {
+            0: '#ffffff',  # Empty - white
+            1: '#0f172a',  # Wall - very dark
+            2: '#10b981',  # Start - green
+            3: '#ef4444',  # Finish - red
+            4: '#f59e0b',  # Path - amber/orange for good contrast
+        }
+
+        return _render_maze_grid(maze, cell_colors, title="Solved Maze")
+
+    solved_maze_preview.short_description = "Solved Maze Preview"
+
+    def solved_maze_grid(self, obj: Maze):
+        if not obj.solved or not obj.solved_maze:
+            return 'No solved maze data'
+        return obj.get_solved_maze()
 
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
@@ -200,7 +244,7 @@ class MazeAdmin(admin.ModelAdmin):
             obj.creator = request.user
         super().save_model(request, obj, form, change)
 
-    actions = ['export_as_json', 'validate_maze_data']
+    actions = ['export_as_json', 'validate_maze_data', 'solve_maze', 'un_solve_maze']
 
     def export_as_json(self, request, queryset):
         """Export selected mazes as JSON"""

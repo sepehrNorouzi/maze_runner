@@ -7,6 +7,10 @@
 #include <string>
 #include <algorithm>
 #include <chrono>
+#include <queue>
+#include <utility>
+
+
 
 namespace py = pybind11;
 
@@ -91,6 +95,65 @@ std::vector<std::vector<int>> generate_maze_py(int n, const std::string &strateg
     return generate_maze_cpp(n, s, hybrid_prob);
 }
 
+static const int dr4[4] = {-1, 1, 0, 0};
+static const int dc4[4] = {0, 0, -1, 1};
+
+std::vector<std::vector<int>> solve_maze(const std::vector<std::vector<int>> &input) {
+    if (input.empty()) return input;
+    int n = (int)input.size();
+    int m = (int)input[0].size();
+    std::vector<std::vector<int>> grid = input;
+
+    Pos start{-1,-1}, finish{-1,-1};
+    for (int r = 0; r < n; ++r) {
+        for (int c = 0; c < m; ++c) {
+            if (grid[r][c] == 2) start = {r,c};
+            else if (grid[r][c] == 3) finish = {r,c};
+        }
+    }
+
+    if (start.r == -1 || finish.r == -1) {
+        return grid;
+    }
+
+    std::vector<std::vector<char>> seen(n, std::vector<char>(m, 0));
+    std::vector<std::vector<std::pair<int,int>>> parent(n, std::vector<std::pair<int,int>>(m, {-1,-1}));
+    std::queue<std::pair<int,int>> q;
+    q.push({start.r, start.c});
+    seen[start.r][start.c] = 1;
+
+    bool found = false;
+    while (!q.empty() && !found) {
+        auto cur = q.front(); q.pop();
+        int r = cur.first, c = cur.second;
+        for (int k = 0; k < 4; ++k) {
+            int nr = r + dr4[k], nc = c + dc4[k];
+            if (nr < 0 || nr >= n || nc < 0 || nc >= m) continue;
+            if (seen[nr][nc]) continue;
+            if (grid[nr][nc] == 1) continue;
+            seen[nr][nc] = 1;
+            parent[nr][nc] = {r, c};
+            q.push({nr, nc});
+            if (nr == finish.r && nc == finish.c) { found = true; break; }
+        }
+    }
+
+    if (!seen[finish.r][finish.c]) {
+        return input;
+    }
+
+    std::pair<int,int> cur = {finish.r, finish.c};
+    while (!(cur.first == start.r && cur.second == start.c)) {
+        auto p = parent[cur.first][cur.second];
+        if (p.first == -1) break; // safety
+        if (!(cur.first == finish.r && cur.second == finish.c) && !(cur.first == start.r && cur.second == start.c)) {
+            if (grid[cur.first][cur.second] == 0) grid[cur.first][cur.second] = 4;
+        }
+        cur = p;
+    }
+    return grid;
+}
+
 // Bindings
 PYBIND11_MODULE(maze_generator, m) {
     m.doc() = "Growing Tree maze generator (returns 2D grid with 0=path,1=wall,2=start,3=end)";
@@ -105,5 +168,20 @@ PYBIND11_MODULE(maze_generator, m) {
             n: size of the grid (will be made odd if even)
             strategy: "newest", "random", or "hybrid"
             hybrid_prob: probability to pick newest in hybrid mode
+          )pbdoc");
+
+    m.def("solve_maze", &solve_maze,
+          py::arg("grid"),
+          R"pbdoc(
+            solve_maze(grid: List[List[int]]) -> List[List[int]]
+
+            Expects grid with integers:
+              0 = empty/path
+              1 = wall
+              2 = start
+              3 = finish
+
+            Returns a copy of the grid with the shortest 4-neighbour path (if any) marked as 4 for intermediate cells.
+            Start (2) and finish (3) are not overwritten.
           )pbdoc");
 }

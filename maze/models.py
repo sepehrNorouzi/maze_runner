@@ -1,8 +1,10 @@
 from django.conf import settings
 from django.core.validators import MaxValueValidator
 from django.db import models
+from django.utils import timezone
 
 from common.models import BaseModel
+from maze.utils import unbit_pack_2d, bit_pack_2d, solve_maze
 
 
 class Maze(BaseModel):
@@ -19,41 +21,51 @@ class Maze(BaseModel):
     hybrid_prob = models.FloatField(default=0.0, verbose_name="Hybrid Probability", validators=[MaxValueValidator(1.0)])
 
     maze_binary = models.BinaryField(null=True, blank=True, verbose_name="Binary data")
+    solved = models.BooleanField(default=False, verbose_name="Solved")
+    solved_maze = models.BinaryField(null=True, blank=True, verbose_name="Solved Maze")
+    solved_time = models.DateTimeField(null=True, blank=True, verbose_name="Solved Time")
+
 
     def set_maze_binary(self, grid):
-        flat = [v for row in grid for v in row]
-        bitstring = 0
-        for v in flat:
-            bitstring = (bitstring << 2) | v
-
-        rows, cols = len(grid), len(grid[0]) if grid else 0
-        header = rows.to_bytes(4, "big") + cols.to_bytes(4, "big")
-
-        num_bits = len(flat) * 2
-        num_bytes = (num_bits + 7) // 8
-        packed = bitstring.to_bytes(num_bytes, "big")
-        self.maze_binary = header + packed
+        if self.maze_binary:
+            return
+        packed = bit_pack_2d(grid)
+        self.maze_binary = packed
+        self.save()
 
     def get_maze_binary(self):
         """Unpack binary data back to 2D grid"""
         if not self.maze_binary:
             return []
 
-        rows = int.from_bytes(self.maze_binary[:4], "big")
-        cols = int.from_bytes(self.maze_binary[4:8], "big")
-        packed = self.maze_binary[8:]
+        return unbit_pack_2d(self.maze_binary)
 
-        bitstring = int.from_bytes(packed, "big")
-        total_values = rows * cols
+    def set_solved_maze(self, grid):
+        if self.solved_maze:
+            return
+        self.solved = True
+        self.solved_time = timezone.now()
+        self.solved_maze = bit_pack_2d(grid)
+        self.save()
 
-        flat = []
-        for i in range(total_values):
-            shift = (total_values - 1 - i) * 2
-            val = (bitstring >> shift) & 0b11
-            flat.append(val)
+    def get_solved_maze(self):
+        if not self.solved_maze:
+            return []
+        return unbit_pack_2d(self.solved_maze)
 
-        result = [flat[i * cols:(i + 1) * cols] for i in range(rows)]
-        return result
+    def solve(self):
+        if self.solved:
+            return
+        solved_grid = solve_maze(self.get_maze_binary())
+        self.set_solved_maze(solved_grid)
+
+    def un_solve(self):
+        if not self.solved:
+            return
+        self.solved = False
+        self.solved_time = None
+        self.solved_maze = None
+        self.save()
 
     def __str__(self):
         return f'{self.creator} - {self.id}'
