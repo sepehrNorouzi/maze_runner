@@ -1,0 +1,65 @@
+services:
+  m_db:
+    image: postgres:17.4-alpine
+    volumes:
+      - m_postgres_data:/var/lib/postgresql/data
+    env_file:
+      - .env
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    command: sh -c  "redis-server --save ${REDIS_DUMP_INTERVAL} 1 --loglevel warning --requirepass ${REDIS_PASSWORD} &&
+      redis-cli --pass ${REDIS_PASSWORD} config set client-output-buffer-limit 'slave 836870912 836870912 0'"
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build: .
+    command: >
+      sh -c "
+        python manage.py migrate &&
+        yes | python manage.py collectstatic --no-input &&
+        (python manage.py compilemessages || echo 'No translation files found or compilation failed') &&
+        python manage.py runserver 0.0.0.0:8000
+      "
+    volumes:
+      - .:/app
+      - static_volume:/app/static
+      - media_volume:/app/uploads
+      - cpp_build:/app/maze_runner/cpp_build
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      m_db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/admin/login/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  m_postgres_data:
+  redis_data:
+  static_volume:
+  media_volume:
+  cpp_build:

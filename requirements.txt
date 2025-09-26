@@ -1,0 +1,13 @@
+Django==5.2.6
+django-filter==25.1
+django-markdown==0.8.4
+djangorestframework==3.16.1
+djangorestframework_simplejwt==5.5.1
+djoser==2.3.3
+gunicorn==23.0.0
+Markdown==3.9
+psycopg2-binary==2.9.10
+pybind11==3.0.1
+python-dotenv==1.1.1
+redis==6.4.0
+requests==2.32.5
