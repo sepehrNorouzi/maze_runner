@@ -1,10 +1,15 @@
+from typing import Literal
+
 from django.conf import settings
 from django.core.validators import MaxValueValidator
 from django.db import models
 from django.utils import timezone
 
 from common.models import BaseModel
-from maze.utils import unbit_pack_2d, bit_pack_2d, solve_maze
+from common.utils import run_lazy
+from maze.tasks import generate_maze_image, generate_solved_maze_image
+from maze.utils import unbit_pack_2d, bit_pack_2d, solve_maze, create_maze
+from user.models import User
 
 
 class Maze(BaseModel):
@@ -21,10 +26,12 @@ class Maze(BaseModel):
     hybrid_prob = models.FloatField(default=0.0, verbose_name="Hybrid Probability", validators=[MaxValueValidator(1.0)])
 
     maze_binary = models.BinaryField(null=True, blank=True, verbose_name="Binary data")
+    maze_image = models.ImageField(upload_to="mazes/", blank=True, null=True, verbose_name="Maze Image")
     solved = models.BooleanField(default=False, verbose_name="Solved")
     solved_maze = models.BinaryField(null=True, blank=True, verbose_name="Solved Maze")
-    solved_time = models.DateTimeField(null=True, blank=True, verbose_name="Solved Time")
+    solved_maze_image = models.ImageField(upload_to="mazes/", blank=True, null=True, verbose_name="Solved Maze Image")
 
+    solved_time = models.DateTimeField(null=True, blank=True, verbose_name="Solved Time")
 
     def set_maze_binary(self, grid):
         if self.maze_binary:
@@ -58,6 +65,7 @@ class Maze(BaseModel):
             return
         solved_grid = solve_maze(self.get_maze_binary())
         self.set_solved_maze(solved_grid)
+        run_lazy(generate_solved_maze_image, self.id)
 
     def un_solve(self):
         if not self.solved:
@@ -66,6 +74,22 @@ class Maze(BaseModel):
         self.solved_time = None
         self.solved_maze = None
         self.save()
+
+    @classmethod
+    def create(cls, creator: User, size: int = 10, mode: Literal["hybrid", "random", "newest"] = 'hybrid',
+               hybrid_prob: float = 0.5):
+        m = create_maze(size=size, mode=mode, hybrid_prob=hybrid_prob)
+        maze = cls(
+            creator=creator,
+            height=size,
+            width=size,
+            growing_tree_algorithm_choice=mode,
+            hybrid_prob=hybrid_prob
+        )
+        maze.set_maze_binary(m)
+        maze.save()
+        run_lazy(generate_maze_image, maze.id)
+        return maze
 
     def __str__(self):
         return f'{self.creator} - {self.id}'

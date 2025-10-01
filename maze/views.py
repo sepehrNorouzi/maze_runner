@@ -16,7 +16,6 @@ class MazeCreateView(View):
     form_class = SimpleMazeForm
 
     def get(self, request):
-        """Render the beautiful maze creation form"""
         form = self.form_class()
         context = {
             'form': form,
@@ -25,7 +24,6 @@ class MazeCreateView(View):
         return render(request, self.template_name, context)
 
     def post(self, request):
-        """Handle form submission - currently just pass with comment for future implementation"""
         form = self.form_class(request.POST)
 
         if form.is_valid():
@@ -34,17 +32,8 @@ class MazeCreateView(View):
             mode = form.cleaned_data['algorithm']
             h_p = form.cleaned_data['hybrid_prob']
             _t0 = time.time_ns()
-            m = create_maze(size=w, mode=mode, hybrid_prob=h_p)
+            maze = Maze.create(creator=request.user, size=w, mode=mode, hybrid_prob=h_p)
             _t1 = time.time_ns()
-            maze = Maze.objects.create(
-                creator=request.user,
-                height=h,
-                width=w,
-                growing_tree_algorithm_choice=mode,
-                hybrid_prob=h_p
-            )
-            maze.set_maze_binary(m)
-            maze.save()
             messages.success(request, 'Maze created successfully in {} nano seconds'.format(str(_t1 - _t0)))
             return HttpResponseRedirect(reverse('admin:maze_maze_change', args=[maze.id]))
 
