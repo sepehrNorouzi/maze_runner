@@ -115,6 +115,8 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+USE_CELERY = os.environ.get("USE_CELERY", "0").lower() in ['1', 'true', 't']
+
 LANGUAGE_CODE = 'en-us'
 
 TIME_ZONE = 'UTC'
@@ -134,3 +136,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 SITE_HEADER = "{project_name} admin panel".format(project_name=PROJECT_NAME.replace('_', ' ').title())
 SITE_TITLE = "Welcome to {project_name} admin panel".format(project_name=PROJECT_NAME.replace('_', ' ').title())
+
+
+CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL")
+CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULTS_BACKEND")

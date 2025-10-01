@@ -57,6 +57,25 @@ services:
       retries: 3
       start_period: 40s
 
+  celery:
+      build:
+        context: .
+        dockerfile: Dockerfile
+      command: celery -A ${PROJECT_NAME} worker --loglevel=info
+      env_file:
+        - .env
+      volumes:
+        - .:/app
+      depends_on:
+        m_db:
+          condition: service_healthy
+        redis:
+          condition: service_healthy
+      restart: unless-stopped
+      tmpfs:
+        - /tmp
+        - /var/tmp
+
 volumes:
   m_postgres_data:
   redis_data:
